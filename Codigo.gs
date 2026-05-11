@@ -705,29 +705,11 @@ function obtenerDatosAdmin() {
       });
     }
     tablero.sort(function(a, b) { return b.faltantes.length - a.faltantes.length; });
-
-    var dashboard = [];
-    for (var pKey in profMatriz) {
-      var info   = profMatriz[pKey];
-      var esp    = info.esperados || 1;
-      var entObj = entregadosMapa[pKey] || {};
-      var ent    = 0;
-      for (var ek in entObj) { ent++; }
-      var pct = ent / esp;
-      dashboard.push({
-        docente:    info.nombre,
-        entregas:   ent + "/" + esp,
-        porcentaje: pct,
-        estatus:    pct >= 1 ? "✅ Completo" : pct > 0 ? "🟡 Parcial" : "⭕ Pendiente"
-      });
-    }
-    dashboard.sort(function(a, b) { return b.porcentaje - a.porcentaje; });
-
-    var bitacora = [];
+     var bitacora = [];
     var hBit = ss.getSheetByName(HOJAS.BITACORA);
     if (hBit && hBit.getLastRow() > 1) {
       var dBit = hBit.getDataRange().getValues();
-      var inicioB = Math.max(1, dBit.length - 50); // reducido a 50
+        var inicioB = Math.max(1, dBit.length - 50);
       for (var bi = dBit.length - 1; bi >= inicioB; bi--) {
         var gdRaw = String(dBit[bi][COL_BITACORA.GRUPOS_DETALLE] || "").trim();
         var gdParsed = [];
@@ -736,6 +718,7 @@ function obtenerDatosAdmin() {
           fecha:         dBit[bi][COL_BITACORA.FECHA],
           profesor:      String(dBit[bi][COL_BITACORA.PROFESOR]    || "").trim(),
           grupos:        dBit[bi][COL_BITACORA.GRUPOS_COUNT] || 0,
+          tipo:          String(dBit[bi][COL_BITACORA.TIPO]        || "").trim(),
           filas:         dBit[bi][COL_BITACORA.FILAS]        || 0,
           segundos:      dBit[bi][COL_BITACORA.SEGUNDOS]     || 0,
           gruposDetalle: gdParsed
@@ -746,9 +729,8 @@ function obtenerDatosAdmin() {
     return {
       ok:                  true,
       totalCalificaciones: totalCalificaciones,
-      bitacora:            bitacora,
-      tablero:             tablero,
-      dashboard:           dashboard
+       tablero:             tablero,
+    bitacora:            bitacora
     };
 
   } catch (e) {
@@ -827,171 +809,4 @@ function generarReporteAlumnosSinCorreo() {
 
     return { ok: true, total: sinCorreo.length };
   } catch (e) { return { ok: false, error: e.message }; }
-}
-
-function adminGetDashboard() {
-  try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var shMaestro = ss.getSheetByName('Maestro');
-    var shMatriz  = ss.getSheetByName('MATRIZ RESUMEN');
-    var dataMaestro = shMaestro.getDataRange().getValues();
-    var dataMatriz  = shMatriz.getDataRange().getValues();
-
-    // --- MAESTRO (cols: Profesor, Grupo, Alumno, Correo, Fecha, Actividad, Calificación, Asignatura)
-    var porProf = {};
-    for (var i = 1; i < dataMaestro.length; i++) {
-      var prof = dataMaestro[i][0], grupo = dataMaestro[i][1], alumno = dataMaestro[i][2];
-      if (!prof) continue;
-      if (!porProf[prof]) porProf[prof] = { grupos: {}, alumnos: {} };
-      porProf[prof].grupos[grupo] = true;
-      porProf[prof].alumnos[alumno] = true;
-    }
-
-    // --- MATRIZ RESUMEN (col 0 = profesor, cols siguientes = grupos asignados)
-    var matrizMap = {};
-    for (var i = 1; i < dataMatriz.length; i++) {
-      var p = dataMatriz[i][0];
-      if (!p) continue;
-      matrizMap[p] = [];
-      for (var c = 1; c < dataMatriz[i].length; c++) {
-        if (dataMatriz[i][c]) matrizMap[p].push(String(dataMatriz[i][c]));
-      }
-    }
-
-    var totalDocentes = Object.keys(matrizMap).length;
-    var completos = 0, parciales = 0, sinCargar = 0;
-    var porDocente = [];
-    var totalAlumnos = 0;
-
-    Object.keys(matrizMap).forEach(function(p) {
-      var asignados = matrizMap[p].length;
-      var cargados = porProf[p] ? Object.keys(porProf[p].grupos).length : 0;
-      var alumnos  = porProf[p] ? Object.keys(porProf[p].alumnos).length : 0;
-      totalAlumnos += alumnos;
-      var pct = asignados > 0 ? Math.round(cargados / asignados * 100) : 0;
-      if (pct === 100) completos++;
-      else if (pct > 0) parciales++;
-      else sinCargar++;
-      porDocente.push({ nombre: p, grupos: cargados, alumnos: alumnos, asignados: asignados, pct: pct });
-    });
-
-    var gruposCargados = 0;
-    Object.keys(porProf).forEach(function(p){ gruposCargados += Object.keys(porProf[p].grupos).length; });
-
-    return {
-      ok: true,
-      totalDocentes: totalDocentes,
-      docentesConDatos: Object.keys(porProf).length,
-      gruposCargados: gruposCargados,
-      totalAlumnos: totalAlumnos,
-      completos: completos, parciales: parciales, sinCargar: sinCargar,
-      porDocente: porDocente
-    };
-  } catch(e) { return { ok: false, error: e.message }; }
-}
-
-function adminGetAvance() {
-  try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var shMaestro = ss.getSheetByName('Maestro');
-    var shMatriz  = ss.getSheetByName('MATRIZ RESUMEN');
-    var dataMaestro = shMaestro.getDataRange().getValues();
-    var dataMatriz  = shMatriz.getDataRange().getValues();
-
-    var porProf = {};
-    for (var i = 1; i < dataMaestro.length; i++) {
-      var prof = dataMaestro[i][0], grupo = dataMaestro[i][1];
-      if (!prof) continue;
-      if (!porProf[prof]) porProf[prof] = {};
-      porProf[prof][grupo] = true;
-    }
-
-    var matrizMap = {};
-    for (var i = 1; i < dataMatriz.length; i++) {
-      var p = dataMatriz[i][0]; if (!p) continue;
-      matrizMap[p] = [];
-      for (var c = 1; c < dataMatriz[i].length; c++) {
-        if (dataMatriz[i][c]) matrizMap[p].push(String(dataMatriz[i][c]));
-      }
-    }
-
-    var docentes = [];
-    Object.keys(matrizMap).forEach(function(p) {
-      var asignados = matrizMap[p];
-      var cargados = porProf[p] ? Object.keys(porProf[p]) : [];
-      var faltantes = asignados.filter(function(g){ return cargados.indexOf(g) < 0; });
-      var pct = asignados.length > 0 ? Math.round(cargados.length / asignados.length * 100) : 0;
-      docentes.push({ nombre: p, gruposAsignados: asignados, gruposCargados: cargados, gruposFaltantes: faltantes, pct: pct });
-    });
-
-    return { ok: true, docentes: docentes };
-  } catch(e) { return { ok: false, error: e.message }; }
-}
-
-function adminGetBitacora() {
-  try {
-    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Bitácora');
-    var data = sh.getDataRange().getValues();
-    // cols: Fecha, Profesor, Grupos cargados, Tipo, Registros nuevos, Segundos, Detalle grupos (JSON)
-    var registros = [];
-    for (var i = 1; i < data.length; i++) {
-      if (!data[i][0]) continue;
-      var detalle = [];
-      try { detalle = JSON.parse(data[i][6]||'[]'); } catch(e){}
-      registros.push({
-        fecha: data[i][0] instanceof Date ? Utilities.formatDate(data[i][0], Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss') : String(data[i][0]),
-        profesor: data[i][1], gruposCargados: data[i][2], tipo: data[i][3],
-        registrosNuevos: data[i][4], segundos: data[i][5], detalle: detalle
-      });
-    }
-    return { ok: true, registros: registros };
-  } catch(e) { return { ok: false, error: e.message }; }
-}
-
-function adminGetDetalle() {
-  try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var shMaestro = ss.getSheetByName('Maestro');
-    var shMatriz  = ss.getSheetByName('MATRIZ RESUMEN');
-    var dataMaestro = shMaestro.getDataRange().getValues();
-    var dataMatriz  = shMatriz.getDataRange().getValues();
-
-    var porProf = {};
-    for (var i = 1; i < dataMaestro.length; i++) {
-      var prof = dataMaestro[i][0], grupo = dataMaestro[i][1], alumno = dataMaestro[i][2];
-      var calif = parseFloat(dataMaestro[i][6]);
-      if (!prof) continue;
-      if (!porProf[prof]) porProf[prof] = {};
-      if (!porProf[prof][grupo]) porProf[prof][grupo] = { alumnos: {}, califs: [] };
-      porProf[prof][grupo].alumnos[alumno] = true;
-      if (!isNaN(calif)) porProf[prof][grupo].califs.push(calif);
-    }
-
-    var matrizMap = {};
-    for (var i = 1; i < dataMatriz.length; i++) {
-      var p = dataMatriz[i][0]; if (!p) continue;
-      matrizMap[p] = [];
-      for (var c = 1; c < dataMatriz[i].length; c++) {
-        if (dataMatriz[i][c]) matrizMap[p].push(String(dataMatriz[i][c]));
-      }
-    }
-
-    var docentes = [];
-    Object.keys(matrizMap).forEach(function(p) {
-      var asignados = matrizMap[p];
-      var gruposCargados = porProf[p] ? Object.keys(porProf[p]) : [];
-      var gruposFaltantes = asignados.filter(function(g){ return gruposCargados.indexOf(g) < 0; });
-      var alumnosPorGrupo = {}, promedioPorGrupo = {}, totalAlumnos = 0;
-      gruposCargados.forEach(function(g){
-        var cnt = porProf[p][g].alumnos ? Object.keys(porProf[p][g].alumnos).length : 0;
-        alumnosPorGrupo[g] = cnt; totalAlumnos += cnt;
-        var cs = porProf[p][g].califs || [];
-        promedioPorGrupo[g] = cs.length > 0 ? cs.reduce(function(a,b){return a+b;},0)/cs.length : null;
-      });
-      var pct = asignados.length > 0 ? Math.round(gruposCargados.length / asignados.length * 100) : 0;
-      docentes.push({ nombre: p, gruposAsignados: asignados, gruposCargados: gruposCargados, gruposFaltantes: gruposFaltantes, alumnosPorGrupo: alumnosPorGrupo, promedioPorGrupo: promedioPorGrupo, totalAlumnos: totalAlumnos, pct: pct });
-    });
-
-    return { ok: true, docentes: docentes };
-  } catch(e) { return { ok: false, error: e.message }; }
 }
