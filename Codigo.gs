@@ -705,11 +705,11 @@ function obtenerDatosAdmin() {
       });
     }
     tablero.sort(function(a, b) { return b.faltantes.length - a.faltantes.length; });
-     var bitacora = [];
+    var bitacora = [];
     var hBit = ss.getSheetByName(HOJAS.BITACORA);
     if (hBit && hBit.getLastRow() > 1) {
       var dBit = hBit.getDataRange().getValues();
-        var inicioB = Math.max(1, dBit.length - 50);
+      var inicioB = Math.max(1, dBit.length - 50);
       for (var bi = dBit.length - 1; bi >= inicioB; bi--) {
         var gdRaw = String(dBit[bi][COL_BITACORA.GRUPOS_DETALLE] || "").trim();
         var gdParsed = [];
@@ -729,8 +729,8 @@ function obtenerDatosAdmin() {
     return {
       ok:                  true,
       totalCalificaciones: totalCalificaciones,
-       tablero:             tablero,
-    bitacora:            bitacora
+      tablero:             tablero,
+      bitacora:            bitacora
     };
 
   } catch (e) {
